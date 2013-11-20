@@ -1,7 +1,10 @@
 var should = require("should");
 var Writer = require("../lib/writer");
 var assert = require("assert");
-var Schema = require("../models/schema");
+
+//in-memory
+var Datastore = require('nedb')
+    , db = new Datastore();
 
 
 var testAuthor = {name : "Testy test", email : "test@test.com"};
@@ -9,11 +12,7 @@ var testAuthor = {name : "Testy test", email : "test@test.com"};
 describe("Writers", function(){
   var writer = {};
   before(function(done){
-    var schema = new Schema({db : "./test/test.db"});
-    writer = new Writer(schema);
-    schema.sync(function(){
-      done();
-    });
+    writer = new Writer(db);
   });
 
   describe('creating a valid article with no tags', function(){

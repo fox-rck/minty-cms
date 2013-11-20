@@ -1,97 +1,190 @@
 var assert = require("assert");
 var _ = require("underscore")._;
 var async = require("async");
-var Writer = require("./lib/writer");
-var Editor = require("./lib/editor");
-var Schema = require("./models/schema");
+var Article = require("./models/article");
+var Author = require("./models/author");
+var Edition = require("./models/edition");
+var Emitter = require("events").EventEmitter;
+var util = require("util");
+var Datastore = require('nedb');
+require('date-utils');
 
-var schema = null;
-
+var db = {};
 
 //initializer
-var Minty = function(args){
-
-  args = args || {};
-  var defaultDb = "./data/minty.db";
-  var conn = args.db || defaultDb;
-
-  //load up the schema
-  schema = new Schema(conn);
-
-  this.writer = new Writer(schema);
-  this.editor = new Editor(schema);
-
-  //BAM outta here
+var Minty = function(){
+  Emitter.call(this);
   return this;
 };
 
+util.inherits(Minty,Emitter);
 
-Minty.prototype.dropAndInstall = function(next) {
-  schema.sync(next);
+var sluggify = function(str){
+  var from  = "ąàáäâãåæćęèéëêìíïîłńòóöôõøśùúüûñçżź",
+      to    = "aaaaaaaaceeeeeiiiilnoooooosuuuunczz",
+      regex = new RegExp('[' + from.replace(/([.*+?^=!:${}()|[\]\/\\])/g, '\\$1') + ']', 'g');
+  if (str == null) return '';
+  str = String(str).toLowerCase().replace(regex, function(c) {
+    return to.charAt(from.indexOf(c)) || '-';
+  });
+  return str.replace(/[^\w\s-]/g, '').replace(/([A-Z])/g, '-$1').replace(/[-_\s]+/g, '-').toLowerCase();
 };
 
-Minty.prototype.saveDraft = function(args, next){
-  this.writer.saveDraft(args,next);
+Minty.prototype.init = function(args, next){
+  var self = this;
+  //do we have a db file to save to?
+  if(args.db){
+    //we're only using a single data store here for articles
+    //if we need to use a separate one for whatever reason, we can
+    //nedb only supports a single document hierarchy
+    db.articles = new Datastore({ filename: args.db, autoload: true });
+    db.articles.loadDatabase(function(err){
+      //set a unique on the slug
+      db.articles.ensureIndex({fieldName : "slug", unique : true}, function(err){
+        next(err, self);
+      });
+    });
+  }else{
+    db.articles = new Datastore();
+    next(null,self);
+  }
 };
+
+Minty.prototype.getArticle = function(args, next){
+  assert(args.id || args.slug, "Need an id or a slug yo");
+  db.articles.findOne(args, function(err,found){
+    if(found){
+      next(null,new Article(found));
+    }else{
+      next(err,null);
+    }
+  });
+};
+
+var createDocument = function(doc, next){
+  var newDoc = new Article(doc);
+  var edition = new Edition();
+  db.articles.insert(newDoc, function(err,inserted){
+    if(err){
+      edition.setInvalid(err);
+      next(err,edition);
+    }else{
+      edition.article = inserted;
+      edition.success = true;
+      edition.message = "Article updated";
+      next(null,edition);
+    }
+  });
+};
+
+var updateDocument = function(doc, changes, next){
+  var changed = new Article(doc).updateTo(changes);
+  var edition = new Edition({article : changed});
+  db.articles.update({slug : args.slug}, changed, {}, function(err){
+    if(err){
+      edition.setInvalid(err);
+      next(err,edition);
+    }else{
+      edition.success = true;
+      edition.message = "Article saved";
+      next(null,edition);
+    }
+  });
+};
+
+Minty.prototype.deleteArticle =function(criteria, next){
+  db.articles.remove(criteria, {multi : true}, next);
+};
+
+Minty.prototype.saveArticle = function(args, next){
+  assert.ok(args.title && args.body, "Need a title and a body yo");
+
+  args = args || {};
+  args.slug = args.slug || sluggify(args.title);
+
+  //do we have an article?
+  db.articles.findOne({slug : args.slug}, function(err,found){
+    if(found){
+      updateDocument(found,args,next);
+    }else{
+      createDocument(args,next);
+    }
+  });
+
+};
+
+
+
 
 Minty.prototype.publishArticle = function(slug, next){
+  var self = this;
   //we can save a few things on publish - not everything
-  var changes = {
-    slug : slug,
-    publishedAt : new Date(),
-    status : "published"
-  };
-
-  this.editor.editArticle(changes, next);
+  db.articles.update({slug : slug}, {$set : {status : "published", publishedAt : new Date()}}, {}, function(){
+    //wish it returned the updated article but... oh well...
+    self.getArticle({slug : slug}, next);
+  });
 };
 
 Minty.prototype.unpublishArticle = function(slug, next){
-  this.editor.editArticle({slug : slug, status : "draft"}, next);
+  var self = this;
+  //we can save a few things on publish - not everything
+  db.articles.update({slug : slug}, {$set : {status : "draft", publishedAt : null}}, {}, function(){
+    //wish it returned the updated article but... oh well...
+    self.getArticle({slug : slug}, next);
+  });
 };
 
 Minty.prototype.takeArticleOffline = function(slug, next){
-  this.editor.editArticle({slug : slug, status : "offline"}, next);
+  var self = this;
+  //we can save a few things on publish - not everything
+  db.articles.update({slug : slug}, {$set : {status : "offline", publishedAt : null}}, {}, function(){
+    //wish it returned the updated article but... oh well...
+    self.getArticle({slug : slug}, next);
+  });
 };
 
-Minty.prototype.deleteAllPosts = function(next){
-  schema.db.query("DELETE FROM posts; DELETE FROM poststags; DELETE FROM tags; DELETE FROM versions;")
-      .success(function(res){
-        next(null,res)
-      })
-      .error(function(err){
-        next(err,null);
-      });
-};
-
-//recent posts
-Minty.prototype.recentPosts = function(criteria, next){
-  criteria = criteria || {};
-  criterial.limit = criteria.limit || 10;
-  this.archive(criteria, next);
-};
-
-//everything
 Minty.prototype.archive = function(criteria, next){
 
   criteria = criteria || {};
   criteria.status = criteria.status || "published";
+  var limit = 200;
 
-  //default to published sort
-  criteria.order = criteria.order || "publishedAt DESC"
+  if(criteria.limit){
+    limit = criteria.limit;
+    //now remove it as it will mess with our query
+    delete criteria.limit;
+  }
+  //nedb doesn't support sorts so... pull everything in and sort it with Underscore :/
+  criteria.publishedAt = criteria.publishedAt || {$lte : new Date()};
 
-  schema.Post.all(criteria)
-      .success(function(posts){
-        next(null,posts);
-      })
-      .error(function(err){
-        next(err,null)
-      });
+  db.articles.find(criteria, function(err, docs){
+    var out = [];
+
+    //push into an Article
+    _.each(docs, function(doc){out.push(new Article(doc));});
+
+    //now sort the output by published date...
+    out.sort(function(a, b){
+      return a.publishedAt < b.publishedAt ? 1 : -1;
+    });
+
+    //clip off based on limit
+    var limited = _.first(out, limit);
+
+    next(err,limited);
+  });
+};
+
+Minty.prototype.recentArticles = function(limit, next){
+
+  //pull the archive...
+  this.archive({limit : limit}, next);
+
+};
+
+Minty.prototype.deleteAllArticles = function(next){
+  this.deleteArticle({}, next);
 };
 
 
-Minty.prototype.getArticle = function(args, next){
-  assert(args.id || args.slug, "Need an id or a slug yo");
-  this.editor.getPost(args,next);
-};
-
-module.exports = Minty;
+module.exports = new Minty();
