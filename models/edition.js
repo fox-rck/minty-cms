@@ -2,11 +2,11 @@
 var Edition = function(args){
   args = args || {};
   return {
-    success : false,
-    message : null,
-    changes : args.changes,
+    success : args.success || false,
+    message : args.message,
     article : args.article,
     setInvalid : function(mssg){
+      this.success = false;
       this.message = mssg;
     }
   }

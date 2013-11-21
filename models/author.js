@@ -1,5 +1,5 @@
 var assert = require("assert");
-var gravatar = require('gravatar');
+var gravatar = require('node-gravatar');
 
 var Author = function(args){
 

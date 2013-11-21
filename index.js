@@ -6,9 +6,7 @@ var Author = require("./models/author");
 var Edition = require("./models/edition");
 var Emitter = require("events").EventEmitter;
 var util = require("util");
-var Datastore = require('nedb');
-require('date-utils');
-
+var Datastore = require("nedb");
 var db = {};
 
 //initializer
@@ -17,6 +15,7 @@ var Minty = function(){
   return this;
 };
 
+//inherit from Emitter
 util.inherits(Minty,Emitter);
 
 var sluggify = function(str){
@@ -30,70 +29,63 @@ var sluggify = function(str){
   return str.replace(/[^\w\s-]/g, '').replace(/([A-Z])/g, '-$1').replace(/[-_\s]+/g, '-').toLowerCase();
 };
 
-Minty.prototype.init = function(args, next){
+Minty.prototype.init =function(conf,next){
   var self = this;
-  //do we have a db file to save to?
-  if(args.db){
-    //we're only using a single data store here for articles
-    //if we need to use a separate one for whatever reason, we can
-    //nedb only supports a single document hierarchy
-    db.articles = new Datastore({ filename: args.db, autoload: true });
-    db.articles.loadDatabase(function(err){
-      //set a unique on the slug
-      db.articles.ensureIndex({fieldName : "slug", unique : true}, function(err){
-        next(err, self);
-      });
-    });
-  }else{
-    db.articles = new Datastore();
-    next(null,self);
-  }
+  assert.ok(conf.db,"Need a db setting");
+
+  //article storage
+  db.articles = new Datastore({ filename: conf.db, autoload: true });
+
+  //need to be sure to index slug
+  db.articles.ensureIndex({fieldName : "slug", unique : true}, function(err){
+    next(err,self);
+  });
 };
+
 
 Minty.prototype.getArticle = function(args, next){
-  assert(args.id || args.slug, "Need an id or a slug yo");
+  assert(args.id || args.slug, "Need an id or a slug");
   db.articles.findOne(args, function(err,found){
-    if(found){
-      next(null,new Article(found));
-    }else{
+    if(err){
       next(err,null);
+    }else{
+      next(null, new Article(found));
     }
   });
 };
 
-var createDocument = function(doc, next){
-  var newDoc = new Article(doc);
-  var edition = new Edition();
-  db.articles.insert(newDoc, function(err,inserted){
+Minty.prototype.deleteArticle = function(criteria, next){
+  db.articles.remove(criteria, next);
+};
+
+
+var createArticle = function(article, next){
+  var newArticle = new Article(article);
+  db.articles.insert(newArticle,function(err,newDoc){
     if(err){
+      var edition = new Edition({article : article});
       edition.setInvalid(err);
       next(err,edition);
     }else{
-      edition.article = inserted;
-      edition.success = true;
-      edition.message = "Article updated";
+      var edition = new Edition({article : newDoc, success : true, message : "Article created"});
       next(null,edition);
     }
+
   });
 };
 
-var updateDocument = function(doc, changes, next){
-  var changed = new Article(doc).updateTo(changes);
-  var edition = new Edition({article : changed});
-  db.articles.update({slug : args.slug}, changed, {}, function(err){
+var updateArticle = function(article,changes, next){
+  var changed = new Article(article).updateTo(changes);
+  db.articles.update({slug : changed.slug}, changed, {}, function(err){
     if(err){
+      var edition = new Edition({article : article});
       edition.setInvalid(err);
-      next(err,edition);
+      next(err,edition)
     }else{
-      edition.success = true;
-      edition.message = "Article saved";
+      var edition = new Edition({article : changed, success : true, message : "Article updated"});
       next(null,edition);
     }
   });
-};
-
-Minty.prototype.deleteArticle =function(criteria, next){
-  db.articles.remove(criteria, {multi : true}, next);
 };
 
 Minty.prototype.saveArticle = function(args, next){
@@ -105,16 +97,22 @@ Minty.prototype.saveArticle = function(args, next){
   //do we have an article?
   db.articles.findOne({slug : args.slug}, function(err,found){
     if(found){
-      updateDocument(found,args,next);
+      updateArticle(found,args, next);
     }else{
-      createDocument(args,next);
+      createArticle(args, next);
     }
   });
 
 };
 
-
-
+Minty.prototype.tagArticle = function(slug, tags, next){
+  var self = this;
+  //we can save a few things on publish - not everything
+  db.articles.update({slug : slug}, {$set : {tags : tags}}, {}, function(){
+    //wish it returned the updated article but... oh well...
+    self.getArticle({slug : slug}, next);
+  });
+};
 
 Minty.prototype.publishArticle = function(slug, next){
   var self = this;
@@ -154,7 +152,10 @@ Minty.prototype.archive = function(criteria, next){
     //now remove it as it will mess with our query
     delete criteria.limit;
   }
-  //nedb doesn't support sorts so... pull everything in and sort it with Underscore :/
+
+  //nedb doesn't support sorts so... pull everything in and sort it with Underscore
+  //which is OK since it's all in-memory and we're caching physical pages so
+  //this will only be called once every great while
   criteria.publishedAt = criteria.publishedAt || {$lte : new Date()};
 
   db.articles.find(criteria, function(err, docs){

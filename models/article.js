@@ -26,8 +26,6 @@ var Article = function(args){
   this.author = args.author || {};
   this.tags = args.tags || [];
 
-
-
   this.setPublishedDates = function(){
     if(this.publishedAt){
       this.publishSlug = this.publishedAt.toYMD();
@@ -37,6 +35,18 @@ var Article = function(args){
       this.prettyDate = null;
     }
   };
+
+  this.isPublished = function(){
+    return this.status === "published" && this.publishedAt && this.publishedAt <= new Date();
+  };
+  this.wordpressUrl = function(){
+    if(this.publishedAt){
+      var dateFragment = this.publishedAt.toFormat("/YYYY/mm/dd/");
+      return dateFragment + this.slug;
+    }
+
+  };
+
   this.setPublishedDates();
 
   this.updateTo = function(changes){
