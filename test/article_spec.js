@@ -8,7 +8,7 @@ var testAuthor = {name : "Testy test", email : "test@test.com"};
 describe("Articles", function(){
 
   before(function(done){
-    Minty.init({db : "./test/test.db"}, function(err,configured){
+    Minty.init({}, function(err,configured){
       minty = configured;
       minty.deleteAllArticles(function(){
         done();

@@ -31,10 +31,16 @@ var sluggify = function(str){
 
 Minty.prototype.init =function(conf,next){
   var self = this;
+  conf = conf || {};
   assert.ok(conf.db,"Need a db setting");
 
   //article storage
-  db.articles = new Datastore({ filename: conf.db, autoload: true });
+  if(conf.db){
+    db.articles = new Datastore({ filename: conf.db, autoload: true });
+  }else{
+    //in-memory only
+    db.articles = new Datastore();
+  }
 
   //need to be sure to index slug
   db.articles.ensureIndex({fieldName : "slug", unique : true}, function(err){
