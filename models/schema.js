@@ -72,7 +72,6 @@ var Schema = function(conn){
         next(null,{success : true});
       });
     });
-
   };
 
   return self;
