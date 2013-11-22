@@ -2,6 +2,7 @@ var uuid = require("node-uuid");
 var assert = require("assert");
 var _ = require("underscore")._;
 require("date-utils");
+var Author = require("./author");
 
 var Article = function(args){
 
@@ -23,9 +24,11 @@ var Article = function(args){
   this.allowComments = args.allowComments || false;
   this.postType = args.postType || "post";
   this.publishedAt = args.publishedAt || null;
-  this.author = args.author || {};
   this.tags = args.tags || [];
 
+  if(args.author){
+    this.author = new Author(args.author);
+  }
   this.setPublishedDates = function(){
     if(this.publishedAt){
       this.publishSlug = this.publishedAt.toYMD();

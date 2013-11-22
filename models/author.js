@@ -10,7 +10,8 @@ var Author = function(args){
   this.name = args.name;
 
   this.gravatarUrl = function(options){
-    return gravatar.url(this.email, options);
+    return gravatar.get(this.email, options);
   };
 
 };
+module.exports = Author;

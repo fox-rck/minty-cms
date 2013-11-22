@@ -3,7 +3,7 @@ var assert = require("assert");
 var Minty = require("../index");
 require("date-utils")
 var minty = {};
-var testAuthor = {name : "Testy test", email : "test@test.com"};
+var testAuthor = {name : "Testy test", email : "rob@wekeroad.com"};
 
 describe("Articles", function(){
 
@@ -42,6 +42,11 @@ describe("Articles", function(){
 
       it('sets the status to DRAFT', function () {
         result.article.status.should.equal("draft")
+      });
+      it('has an author with a gravatar',function(){
+        var url = result.article.author.gravatarUrl();
+        console.log(url);
+        url.length.should.be.greaterThan(0);  
       });
 
     });
