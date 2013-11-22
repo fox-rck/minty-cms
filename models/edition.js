@@ -1,34 +1,18 @@
 //a helper class we're using as a bit of a MONAD
 var Edition = function(args){
+  args = args || {};
   return {
-    success : false,
-    message : null,
-    changes : args.changes,
+    success : args.success || false,
+    message : args.message,
     article : args.article,
-    author : args.author,
-    tags : args.tags || [],
+    changes : args.changes,
     setInvalid : function(mssg){
-
+      this.success = false;
       this.message = mssg;
     },
-    hasAuthorAndArticle : function(){
-      return this.article && this.author;
-    },
-    articleIsValid : function(){
-      return this.article && this.article.isValid();
-    },
-    createSlugFromTitle : function(){
-      return this.sluggify(this.article.title);
-    },
-    sluggify : function(str){
-      var from  = "ąàáäâãåæćęèéëêìíïîłńòóöôõøśùúüûñçżź",
-          to    = "aaaaaaaaceeeeeiiiilnoooooosuuuunczz",
-          regex = new RegExp('[' + from.replace(/([.*+?^=!:${}()|[\]\/\\])/g, '\\$1') + ']', 'g');
-      if (str == null) return '';
-      str = String(str).toLowerCase().replace(regex, function(c) {
-        return to.charAt(from.indexOf(c)) || '-';
-      });
-      return str.replace(/[^\w\s-]/g, '').replace(/([A-Z])/g, '-$1').replace(/[-_\s]+/g, '-').toLowerCase();
+    setSuccessful : function(mssg){
+      this.success = true;
+      this.message = mssg;
     }
   }
 };
