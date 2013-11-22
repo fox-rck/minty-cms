@@ -9,11 +9,11 @@ var Article = function(args){
   assert.ok(args.title && args.body && args.slug, "Need a slug, title and a body");
 
   //we also need an author
-  assert.ok(args.author, "Need an author here bud");
+  assert.ok(args.author, "Need an author");
 
   this.title = args.title;
-  this.summary = null;
-  this.image = null;
+  this.summary = args.summary;
+  this.image = args.image;
   this.body = args.body;
   this.slug = args.slug;
   this.createdAt = args.createdAt || new Date();
@@ -43,6 +43,8 @@ var Article = function(args){
     if(this.publishedAt){
       var dateFragment = this.publishedAt.toFormat("/YYYY/mm/dd/");
       return dateFragment + this.slug;
+    }else{
+      return null;
     }
 
   };

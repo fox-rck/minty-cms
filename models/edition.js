@@ -5,8 +5,13 @@ var Edition = function(args){
     success : args.success || false,
     message : args.message,
     article : args.article,
+    changes : args.changes,
     setInvalid : function(mssg){
       this.success = false;
+      this.message = mssg;
+    },
+    setSuccessful : function(mssg){
+      this.success = true;
       this.message = mssg;
     }
   }

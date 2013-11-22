@@ -1,13 +1,11 @@
 var assert = require("assert");
 var _ = require("underscore")._;
 var async = require("async");
-var Article = require("./models/article");
-var Author = require("./models/author");
-var Edition = require("./models/edition");
+
+var Publisher = require("./lib/publisher");
 var Emitter = require("events").EventEmitter;
 var util = require("util");
 var Datastore = require("nedb");
-var db = {};
 
 //initializer
 var Minty = function(){
@@ -18,24 +16,16 @@ var Minty = function(){
 //inherit from Emitter
 util.inherits(Minty,Emitter);
 
-var sluggify = function(str){
-  var from  = "ąàáäâãåæćęèéëêìíïîłńòóöôõøśùúüûñçżź",
-      to    = "aaaaaaaaceeeeeiiiilnoooooosuuuunczz",
-      regex = new RegExp('[' + from.replace(/([.*+?^=!:${}()|[\]\/\\])/g, '\\$1') + ']', 'g');
-  if (str == null) return '';
-  str = String(str).toLowerCase().replace(regex, function(c) {
-    return to.charAt(from.indexOf(c)) || '-';
-  });
-  return str.replace(/[^\w\s-]/g, '').replace(/([A-Z])/g, '-$1').replace(/[-_\s]+/g, '-').toLowerCase();
-};
+//local, private instance of the DB
+var db = {};
 
 Minty.prototype.init =function(conf,next){
   var self = this;
   conf = conf || {};
-  assert.ok(conf.db,"Need a db setting");
 
   //article storage
   if(conf.db){
+    assert.ok(conf.db,"Need a db setting");
     db.articles = new Datastore({ filename: conf.db, autoload: true });
   }else{
     //in-memory only
@@ -44,70 +34,31 @@ Minty.prototype.init =function(conf,next){
 
   //need to be sure to index slug
   db.articles.ensureIndex({fieldName : "slug", unique : true}, function(err){
+    self.publisher = new Publisher(db);
     next(err,self);
   });
+
 };
 
 
 Minty.prototype.getArticle = function(args, next){
-  assert(args.id || args.slug, "Need an id or a slug");
-  db.articles.findOne(args, function(err,found){
-    if(err){
-      next(err,null);
-    }else{
-      next(null, new Article(found));
-    }
+  this.publisher.getArticle(args,function(err, dog){
+    next(err,dog);
   });
 };
 
 Minty.prototype.deleteArticle = function(criteria, next){
-  db.articles.remove(criteria, next);
+  this.publisher.deleteArticle(criteria,next);
 };
 
-
-var createArticle = function(article, next){
-  var newArticle = new Article(article);
-  db.articles.insert(newArticle,function(err,newDoc){
-    if(err){
-      var edition = new Edition({article : article});
-      edition.setInvalid(err);
-      next(err,edition);
-    }else{
-      var edition = new Edition({article : newDoc, success : true, message : "Article created"});
-      next(null,edition);
-    }
-
-  });
-};
-
-var updateArticle = function(article,changes, next){
-  var changed = new Article(article).updateTo(changes);
-  db.articles.update({slug : changed.slug}, changed, {}, function(err){
-    if(err){
-      var edition = new Edition({article : article});
-      edition.setInvalid(err);
-      next(err,edition)
-    }else{
-      var edition = new Edition({article : changed, success : true, message : "Article updated"});
-      next(null,edition);
-    }
-  });
-};
 
 Minty.prototype.saveArticle = function(args, next){
-  assert.ok(args.title && args.body, "Need a title and a body yo");
 
   args = args || {};
+  //make sure we have a slug
   args.slug = args.slug || sluggify(args.title);
 
-  //do we have an article?
-  db.articles.findOne({slug : args.slug}, function(err,found){
-    if(found){
-      updateArticle(found,args, next);
-    }else{
-      createArticle(args, next);
-    }
-  });
+  this.publisher.saveArticle(args,next);
 
 };
 
@@ -164,22 +115,8 @@ Minty.prototype.archive = function(criteria, next){
   //this will only be called once every great while
   criteria.publishedAt = criteria.publishedAt || {$lte : new Date()};
 
-  db.articles.find(criteria, function(err, docs){
-    var out = [];
-
-    //push into an Article
-    _.each(docs, function(doc){out.push(new Article(doc));});
-
-    //now sort the output by published date...
-    out.sort(function(a, b){
-      return a.publishedAt < b.publishedAt ? 1 : -1;
-    });
-
-    //clip off based on limit
-    var limited = _.first(out, limit);
-
-    next(err,limited);
-  });
+  //hand off to the publisher bits
+  this.publisher.allArticles(criteria,next);
 };
 
 Minty.prototype.recentArticles = function(limit, next){
@@ -193,5 +130,27 @@ Minty.prototype.deleteAllArticles = function(next){
   this.deleteArticle({}, next);
 };
 
+Minty.prototype.tagList = function(next){
+  this.archive({},function(err, articles){
+    var smushed = _.map(articles, function(article){
+      return _.flatten(article.tags);
+    });
+    var uniqued = _.uniq(smushed);
+    next(null,uniqued);
+  });
+
+};
+
+//utility function for creating slugs
+var sluggify = function(str){
+  var from  = "ąàáäâãåæćęèéëêìíïîłńòóöôõøśùúüûñçżź",
+      to    = "aaaaaaaaceeeeeiiiilnoooooosuuuunczz",
+      regex = new RegExp('[' + from.replace(/([.*+?^=!:${}()|[\]\/\\])/g, '\\$1') + ']', 'g');
+  if (str == null) return '';
+  str = String(str).toLowerCase().replace(regex, function(c) {
+    return to.charAt(from.indexOf(c)) || '-';
+  });
+  return str.replace(/[^\w\s-]/g, '').replace(/([A-Z])/g, '-$1').replace(/[-_\s]+/g, '-').toLowerCase();
+};
 
 module.exports = new Minty();
