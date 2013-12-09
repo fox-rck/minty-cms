@@ -33,7 +33,6 @@ Minty.prototype.init =function(conf,next){
 
   //need to be sure to index slug
   db.articles.ensureIndex({fieldName : "slug", unique : true}, function(err){
-    self.publisher = new Publisher(db);
     next(err,self);
   });
 
@@ -41,63 +40,69 @@ Minty.prototype.init =function(conf,next){
 
 
 Minty.prototype.getArticle = function(args, next){
-  this.publisher.getArticle(args,function(err, dog){
+  var publisher = new Publisher(db);
+  publisher.getArticle(args,function(err, dog){
     next(err,dog);
   });
 };
 
 Minty.prototype.deleteArticle = function(criteria, next){
-  this.publisher.deleteArticle(criteria,next);
+  var publisher = new Publisher(db);
+  publisher.deleteArticle(criteria,next);
 };
 
 
 Minty.prototype.saveArticle = function(args, next){
-
+  var publisher = new Publisher(db);
   args = args || {};
   //make sure we have a slug
   args.slug = args.slug || sluggify(args.title);
 
-  this.publisher.saveArticle(args,next);
+  publisher.saveArticle(args,next);
 
 };
 
 Minty.prototype.tagArticle = function(slug, tags, next){
   var self = this;
+  var publisher = new Publisher(db);
   this.getArticle({slug : slug}, function(err,article){
     article.tags = tags;
-    self.publisher.saveArticle(article, next);
+    publisher.saveArticle(article, next);
   });
 };
 
 Minty.prototype.publishArticle = function(slug, next){
   var self = this;
+  var publisher = new Publisher(db);
   this.getArticle({slug : slug}, function(err,article){
     article.status = "published";
     article.publishedAt = new Date();
-    self.publisher.saveArticle(article, next);
+    publisher.saveArticle(article, next);
   });
 };
 
 Minty.prototype.unpublishArticle = function(slug, next){
   var self = this;
+  var publisher = new Publisher(db);
   this.getArticle({slug : slug}, function(err,article){
     article.status = "draft";
     article.publishedAt = null;
-    self.publisher.saveArticle(article, next);
+    publisher.saveArticle(article, next);
   });
 };
 
 Minty.prototype.takeArticleOffline = function(slug, next){
   var self = this;
+  var publisher = new Publisher(db);
   this.getArticle({slug : slug}, function(err,article){
     article.status = "offline";
     article.publishedAt = null;
-    self.publisher.saveArticle(article, next);
+    publisher.saveArticle(article, next);
   })
 };
 
 Minty.prototype.archive = function(criteria, next){
-
+  var publisher = new Publisher(db);
   criteria = criteria || {};
   criteria.status = criteria.status || "published";
   var limit = 200;
@@ -114,7 +119,7 @@ Minty.prototype.archive = function(criteria, next){
   criteria.publishedAt = criteria.publishedAt || {$lte : new Date()};
 
   //hand off to the publisher bits
-  this.publisher.allArticles(criteria,next);
+  publisher.allArticles(criteria,next);
 };
 
 Minty.prototype.recentArticles = function(limit, next){
