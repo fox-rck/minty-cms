@@ -54,12 +54,19 @@ Minty.prototype.deleteArticle = function(criteria, next){
 
 Minty.prototype.saveArticle = function(args, next){
   var publisher = new Publisher(db);
+  var self = this;
   args = args || {};
   //make sure we have a slug
   args.slug = args.slug || sluggify(args.title);
 
-  publisher.saveArticle(args,next);
-
+  publisher.saveArticle(args,function(err,edition){
+    if(err){
+      self.emit("article-error",err);
+    }else{
+      self.emit("article-saved",edition);
+    }
+    next(err,edition);
+  });
 };
 
 Minty.prototype.tagArticle = function(slug, tags, next){
@@ -67,7 +74,14 @@ Minty.prototype.tagArticle = function(slug, tags, next){
   var publisher = new Publisher(db);
   this.getArticle({slug : slug}, function(err,article){
     article.tags = tags;
-    publisher.saveArticle(article, next);
+    publisher.saveArticle(article,function(err,edition){
+      if(err){
+        self.emit("article-error",err);
+      }else{
+        self.emit("article-tagged",edition);
+      }
+      next(err,edition);
+    });
   });
 };
 
@@ -77,7 +91,14 @@ Minty.prototype.publishArticle = function(slug, next){
   this.getArticle({slug : slug}, function(err,article){
     article.status = "published";
     article.publishedAt = new Date();
-    publisher.saveArticle(article, next);
+    publisher.saveArticle(article,function(err,edition){
+      if(err){
+        self.emit("article-error",err);
+      }else{
+        self.emit("article-published",edition);
+      }
+      next(err,edition);
+    });
   });
 };
 
@@ -87,7 +108,14 @@ Minty.prototype.unpublishArticle = function(slug, next){
   this.getArticle({slug : slug}, function(err,article){
     article.status = "draft";
     article.publishedAt = null;
-    publisher.saveArticle(article, next);
+    publisher.saveArticle(article,function(err,edition){
+      if(err){
+        self.emit("article-error",err);
+      }else{
+        self.emit("article-unpublished",edition);
+      }
+      next(err,edition);
+    });
   });
 };
 
@@ -97,7 +125,14 @@ Minty.prototype.takeArticleOffline = function(slug, next){
   this.getArticle({slug : slug}, function(err,article){
     article.status = "offline";
     article.publishedAt = null;
-    publisher.saveArticle(article, next);
+    publisher.saveArticle(article,function(err,edition){
+      if(err){
+        self.emit("article-error",err);
+      }else{
+        self.emit("article-taken-offline",edition);
+      }
+      next(err,edition);
+    });
   })
 };
 
