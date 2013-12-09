@@ -54,6 +54,15 @@ var Article = function(args){
 
   this.setPublishedDates();
 
+  this.publish = function(){
+    this.status = "published";
+    this.publishedAt = new Date();
+  };
+
+  this.unpublish = function(){
+    this.status = "draft";
+    this.publishedAt = null;
+  };
   this.updateTo = function(changes){
     _.extend(this,changes);
     return this;

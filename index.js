@@ -1,6 +1,5 @@
 var assert = require("assert");
 var _ = require("underscore")._;
-var async = require("async");
 
 var Publisher = require("./lib/publisher");
 var Emitter = require("events").EventEmitter;
@@ -64,38 +63,37 @@ Minty.prototype.saveArticle = function(args, next){
 
 Minty.prototype.tagArticle = function(slug, tags, next){
   var self = this;
-  //we can save a few things on publish - not everything
-  db.articles.update({slug : slug}, {$set : {tags : tags}}, {}, function(){
-    //wish it returned the updated article but... oh well...
-    self.getArticle({slug : slug}, next);
+  this.getArticle({slug : slug}, function(err,article){
+    article.tags = tags;
+    self.publisher.saveArticle(article, next);
   });
 };
 
 Minty.prototype.publishArticle = function(slug, next){
   var self = this;
-  //we can save a few things on publish - not everything
-  db.articles.update({slug : slug}, {$set : {status : "published", publishedAt : new Date()}}, {}, function(){
-    //wish it returned the updated article but... oh well...
-    self.getArticle({slug : slug}, next);
+  this.getArticle({slug : slug}, function(err,article){
+    article.status = "published";
+    article.publishedAt = new Date();
+    self.publisher.saveArticle(article, next);
   });
 };
 
 Minty.prototype.unpublishArticle = function(slug, next){
   var self = this;
-  //we can save a few things on publish - not everything
-  db.articles.update({slug : slug}, {$set : {status : "draft", publishedAt : null}}, {}, function(){
-    //wish it returned the updated article but... oh well...
-    self.getArticle({slug : slug}, next);
+  this.getArticle({slug : slug}, function(err,article){
+    article.status = "draft";
+    article.publishedAt = null;
+    self.publisher.saveArticle(article, next);
   });
 };
 
 Minty.prototype.takeArticleOffline = function(slug, next){
   var self = this;
-  //we can save a few things on publish - not everything
-  db.articles.update({slug : slug}, {$set : {status : "offline", publishedAt : null}}, {}, function(){
-    //wish it returned the updated article but... oh well...
-    self.getArticle({slug : slug}, next);
-  });
+  this.getArticle({slug : slug}, function(err,article){
+    article.status = "offline";
+    article.publishedAt = null;
+    self.publisher.saveArticle(article, next);
+  })
 };
 
 Minty.prototype.archive = function(criteria, next){

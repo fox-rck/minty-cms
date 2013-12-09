@@ -123,12 +123,12 @@ describe("Articles", function(){
       });
 
       it('is published', function () {
-        result.isPublished().should.equal(true);
+        result.article.isPublished().should.equal(true);
       });
 
       it('has a wordpress url', function () {
-        var expectedURL = new Date().toFormat("/YYYY/mm/dd/") + result.slug;
-        result.wordpressUrl().should.equal(expectedURL);
+        var expectedURL = new Date().toFormat("/YYYY/mm/dd/") + result.article.slug;
+        result.article.wordpressUrl().should.equal(expectedURL);
       });
     });
 
@@ -146,11 +146,11 @@ describe("Articles", function(){
       });
 
       it('is NOT published', function () {
-        result.isPublished().should.equal(false);
+        result.article.isPublished().should.equal(false);
       });
 
       it('does not have a wordpress url', function () {
-        should.not.exist(result.wordpressUrl());
+        should.not.exist(result.article.wordpressUrl());
       });
     });
     describe("taking offline", function () {
@@ -166,11 +166,11 @@ describe("Articles", function(){
       });
 
       it('is NOT published', function () {
-        result.isPublished().should.equal(false);
+        result.article.isPublished().should.equal(false);
       });
 
       it('does not have a wordpress url', function () {
-        should.not.exist(result.wordpressUrl());
+        should.not.exist(result.article.wordpressUrl());
       });
     });
 
@@ -187,10 +187,10 @@ describe("Articles", function(){
       });
 
       it('replaces existing tags', function () {
-        result.tags.length.should.equal(3);
-        result.tags.indexOf("foot").should.be.greaterThan(-1);
-        result.tags.indexOf("pitched").should.be.greaterThan(-1);
-        result.tags.indexOf("klonk").should.be.greaterThan(-1);
+        result.article.tags.length.should.equal(3);
+        result.article.tags.indexOf("foot").should.be.greaterThan(-1);
+        result.article.tags.indexOf("pitched").should.be.greaterThan(-1);
+        result.article.tags.indexOf("klonk").should.be.greaterThan(-1);
       });
 
     });
