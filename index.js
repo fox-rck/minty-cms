@@ -2,6 +2,7 @@ var assert = require("assert");
 var _ = require("underscore")._;
 
 var Publisher = require("./lib/publisher");
+var Validator = require("./lib/validator");
 var Emitter = require("events").EventEmitter;
 var util = require("util");
 var Datastore = require("nedb");
@@ -15,8 +16,10 @@ var Minty = function(){
 //inherit from Emitter
 util.inherits(Minty,Emitter);
 
-//local, private instance of the DB
-var db = {};
+//local, private variables
+var db = {}, publisher, validator;
+
+
 
 Minty.prototype.init =function(conf,next){
   var self = this;
@@ -31,6 +34,12 @@ Minty.prototype.init =function(conf,next){
     db.articles = new Datastore();
   }
 
+  publisher = new Publisher(db);
+  validator = new Validator(db);
+
+  //set up the event chain
+  wireEvents();
+
   //need to be sure to index slug
   db.articles.ensureIndex({fieldName : "slug", unique : true}, function(err){
     next(err,self);
@@ -38,22 +47,36 @@ Minty.prototype.init =function(conf,next){
 
 };
 
+//the save process
+var wireEvents = function(){
+  publisher.on("save-requested", validator.checkRequired);
+  validator.on("validated", validator.checkExistence);
+  validator.on("exists", publisher.updateArticle);
+  validator.on("doesnt-exist", publisher.createArticle);
+
+  //happy path
+  publisher.on("created", saveOk);
+  publisher.on("updated", saveOk);
+
+  //sad path
+  publisher.on("invalid", saveNotOk);
+  validator.on("invalid", saveNotOk);
+};
+
+
 
 Minty.prototype.getArticle = function(args, next){
-  var publisher = new Publisher(db);
   publisher.getArticle(args,function(err, dog){
     next(err,dog);
   });
 };
 
 Minty.prototype.deleteArticle = function(criteria, next){
-  var publisher = new Publisher(db);
   publisher.deleteArticle(criteria,next);
 };
 
 
 Minty.prototype.saveArticle = function(args, next){
-  var publisher = new Publisher(db);
   var self = this;
   args = args || {};
   //make sure we have a slug
@@ -69,9 +92,26 @@ Minty.prototype.saveArticle = function(args, next){
   });
 };
 
+var saveOk = function(edition){
+  //just to be sure
+  edition.success = true;
+  if(edition.continueWith){
+    edition.continueWith(null,edition);
+  }
+};
+
+var saveNotOk = function(edition){
+  //just to be sure
+  edition.success = false;
+  if(edition.continueWith){
+    edition.continueWith(edition.message,edition);
+  }
+};
+
+
+
 Minty.prototype.tagArticle = function(slug, tags, next){
   var self = this;
-  var publisher = new Publisher(db);
   this.getArticle({slug : slug}, function(err,article){
     article.tags = tags;
     publisher.saveArticle(article,function(err,edition){
@@ -87,7 +127,6 @@ Minty.prototype.tagArticle = function(slug, tags, next){
 
 Minty.prototype.publishArticle = function(slug, next){
   var self = this;
-  var publisher = new Publisher(db);
   this.getArticle({slug : slug}, function(err,article){
     article.status = "published";
     article.publishedAt = new Date();
@@ -104,7 +143,6 @@ Minty.prototype.publishArticle = function(slug, next){
 
 Minty.prototype.unpublishArticle = function(slug, next){
   var self = this;
-  var publisher = new Publisher(db);
   this.getArticle({slug : slug}, function(err,article){
     article.status = "draft";
     article.publishedAt = null;
@@ -121,7 +159,6 @@ Minty.prototype.unpublishArticle = function(slug, next){
 
 Minty.prototype.takeArticleOffline = function(slug, next){
   var self = this;
-  var publisher = new Publisher(db);
   this.getArticle({slug : slug}, function(err,article){
     article.status = "offline";
     article.publishedAt = null;
@@ -137,7 +174,6 @@ Minty.prototype.takeArticleOffline = function(slug, next){
 };
 
 Minty.prototype.archive = function(criteria, next){
-  var publisher = new Publisher(db);
   criteria = criteria || {};
   criteria.status = criteria.status || "published";
   var limit = 200;
